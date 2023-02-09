@@ -4,7 +4,7 @@ Provided to avoid some circular imports
 """
 from itertools import repeat, starmap
 from multiprocessing import Pool
-
+import openmc.deplete.global_vars as gv
 
 # Configurable switch that enables / disables the use of
 # multiprocessing routines during depletion
@@ -58,7 +58,15 @@ def deplete(func, chain, x, rates, dt, matrix_func=None):
         matrices = map(chain.form_matrix, rates, fission_yields)
     else:
         matrices = map(matrix_func, repeat(chain), rates, fission_yields)
-
+        
+    key = max(gv.transition_matrices.keys())
+    gv.transition_matrices[key] = list(matrices)
+    
+    if matrix_func is None:
+        matrices = map(chain.form_matrix, rates, fission_yields)
+    else:
+        matrices = map(matrix_func, repeat(chain), rates, fission_yields)
+        
     inputs = zip(matrices, x, repeat(dt))
 
     if USE_MULTIPROCESSING:

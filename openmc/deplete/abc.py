@@ -12,6 +12,7 @@ from numbers import Real, Integral
 from contextlib import contextmanager
 import os
 from pathlib import Path
+import sys
 import time
 from warnings import warn
 
@@ -24,6 +25,7 @@ from .stepresult import StepResult
 from .chain import Chain
 from .results import Results
 from .pool import deplete
+import openmc.deplete.global_vars as gv
 
 
 __all__ = [
@@ -35,7 +37,6 @@ __all__ = [
 _SECONDS_PER_MINUTE = 60
 _SECONDS_PER_HOUR = 60*60
 _SECONDS_PER_DAY = 24*60*60
-_SECONDS_PER_JULIAN_YEAR = 365.25*24*60*60
 
 OperatorResult = namedtuple('OperatorResult', ['k', 'rates'])
 OperatorResult.__doc__ = """\
@@ -531,11 +532,11 @@ class Integrator(ABC):
         each interval in :attr:`timesteps`
 
         .. versionadded:: 0.12.1
-    timestep_units : {'s', 'min', 'h', 'd', 'a', 'MWd/kg'}
+    timestep_units : {'s', 'min', 'h', 'd', 'MWd/kg'}
         Units for values specified in the `timesteps` argument. 's' means
-        seconds, 'min' means minutes, 'h' means hours, 'a' means Julian years
-        and 'MWd/kg' indicates that the values are given in burnup (MW-d of
-        energy deposited per kilogram of initial heavy metal).
+        seconds, 'min' means minutes, 'h' means hours, and 'MWd/kg' indicates
+        that the values are given in burnup (MW-d of energy deposited per
+        kilogram of initial heavy metal).
     solver : str or callable, optional
         If a string, must be the name of the solver responsible for
         solving the Bateman equations.  Current options are:
@@ -638,8 +639,6 @@ class Integrator(ABC):
                 seconds.append(timestep*_SECONDS_PER_HOUR)
             elif unit in ('d', 'day'):
                 seconds.append(timestep*_SECONDS_PER_DAY)
-            elif unit in ('a', 'year'):
-                seconds.append(timestep*_SECONDS_PER_JULIAN_YEAR)
             elif unit.lower() == 'mwd/kg':
                 watt_days_per_kg = 1e6*timestep
                 kilograms = 1e-3*operator.heavy_metal
@@ -800,7 +799,8 @@ class Integrator(ABC):
             for i, (dt, source_rate) in enumerate(self):
                 if output:
                     print(f"[openmc.deplete] t={t} s, dt={dt} s, source={source_rate}")
-
+                    
+                gv.transition_matrices[i] = []
                 # Solve transport equation (or obtain result from restart)
                 if i > 0 or self.operator.prev_res is None:
                     conc, res = self._get_bos_data_from_operator(i, source_rate, conc)
